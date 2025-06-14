@@ -1,0 +1,68 @@
+{
+  "name": "cloud-weather-dashboard",
+  "version": "1.0.0",
+  "description": "Multi-cloud serverless weather dashboard with AWS, Azure, and GCP integration",
+  "author": "Nguie Angoue Jean Roch Junior <nguierochjunior@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "deploy:aws": "cd terraform/aws && terraform apply -auto-approve",
+    "deploy:azure": "cd terraform/azure && terraform apply -auto-approve",
+    "deploy:gcp": "cd terraform/gcp && terraform apply -auto-approve",
+    "deploy:all": "npm run deploy:aws && npm run deploy:azure && npm run deploy:gcp",
+    "tf:init": "cd terraform/aws && terraform init && cd ../azure && terraform init && cd ../gcp && terraform init",
+    "tf:plan": "cd terraform/aws && terraform plan && cd ../azure && terraform plan && cd ../gcp && terraform plan",
+    "tf:destroy": "cd terraform/aws && terraform destroy && cd ../azure && terraform destroy && cd ../gcp && terraform destroy",
+    "build:lambda": "cd lambda && npm run build",
+    "test:api": "cd lambda && npm test"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "@aws-sdk/client-dynamodb": "^3.450.0",
+    "@aws-sdk/client-lambda": "^3.450.0",
+    "@azure/cosmos": "^4.0.0",
+    "@google-cloud/firestore": "^7.1.0",
+    "axios": "^1.6.0",
+    "lucide-react": "^0.294.0",
+    "clsx": "^2.0.0",
+    "swr": "^2.2.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "prettier": "^3.0.0"
+  },
+  "keywords": [
+    "weather",
+    "dashboard",
+    "serverless",
+    "aws",
+    "azure",
+    "gcp",
+    "terraform",
+    "nextjs",
+    "multi-cloud",
+    "backend"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nguieangoue/cloud-weather-dashboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nguieangoue/cloud-weather-dashboard/issues"
+  },
+  "homepage": "https://github.com/nguieangoue/cloud-weather-dashboard#readme"
+} 

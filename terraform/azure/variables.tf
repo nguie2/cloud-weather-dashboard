@@ -1,0 +1,41 @@
+variable "azure_region" {
+  description = "Azure region for resources"
+  type        = string
+  default     = "East US"
+}
+
+variable "project_name" {
+  description = "Name of the project"
+  type        = string
+  default     = "cloud-weather-dashboard"
+}
+
+variable "environment" {
+  description = "Environment name (dev, staging, prod)"
+  type        = string
+  default     = "dev"
+}
+
+variable "openweather_api_key" {
+  description = "OpenWeather API key"
+  type        = string
+  sensitive   = true
+}
+
+variable "weather_api_key" {
+  description = "WeatherAPI key"
+  type        = string
+  sensitive   = true
+}
+
+variable "accuweather_api_key" {
+  description = "AccuWeather API key"
+  type        = string
+  sensitive   = true
+}
+
+variable "tags" {
+  description = "Additional tags for resources"
+  type        = map(string)
+  default     = {}
+} 

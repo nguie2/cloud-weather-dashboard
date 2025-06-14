@@ -1,0 +1,347 @@
+name: Multi-Cloud Deployment
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'Deployment target'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - aws
+          - azure
+          - gcp
+          - frontend
+
+env:
+  NODE_VERSION: '18'
+  TERRAFORM_VERSION: '1.6.0'
+
+jobs:
+  # Test and Build
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run type checking
+        run: npm run type-check
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            .next/
+            lambda/
+            terraform/
+
+  # Deploy to AWS
+  deploy-aws:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'aws' || github.event.inputs.deploy_target == '')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install Lambda dependencies
+        run: |
+          cd lambda/aws && npm install --production
+          cd ../aggregation && npm install --production
+
+      - name: Initialize Terraform (AWS)
+        run: |
+          cd terraform/aws
+          terraform init
+
+      - name: Plan Terraform (AWS)
+        run: |
+          cd terraform/aws
+          terraform plan \
+            -var="openweather_api_key=${{ secrets.OPENWEATHER_API_KEY }}" \
+            -var="weather_api_key=${{ secrets.WEATHER_API_KEY }}" \
+            -var="accuweather_api_key=${{ secrets.ACCUWEATHER_API_KEY }}" \
+            -var="azure_function_url=${{ secrets.AZURE_API_URL }}" \
+            -var="gcp_function_url=${{ secrets.GCP_API_URL }}"
+
+      - name: Apply Terraform (AWS)
+        run: |
+          cd terraform/aws
+          terraform apply -auto-approve \
+            -var="openweather_api_key=${{ secrets.OPENWEATHER_API_KEY }}" \
+            -var="weather_api_key=${{ secrets.WEATHER_API_KEY }}" \
+            -var="accuweather_api_key=${{ secrets.ACCUWEATHER_API_KEY }}" \
+            -var="azure_function_url=${{ secrets.AZURE_API_URL }}" \
+            -var="gcp_function_url=${{ secrets.GCP_API_URL }}"
+
+      - name: Output AWS endpoints
+        run: |
+          cd terraform/aws
+          echo "AWS_API_URL=$(terraform output -raw api_gateway_url)" >> $GITHUB_ENV
+          terraform output
+
+  # Deploy to Azure
+  deploy-azure:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'azure' || github.event.inputs.deploy_target == '')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Initialize Terraform (Azure)
+        run: |
+          cd terraform/azure
+          terraform init
+
+      - name: Plan Terraform (Azure)
+        run: |
+          cd terraform/azure
+          terraform plan \
+            -var="openweather_api_key=${{ secrets.OPENWEATHER_API_KEY }}" \
+            -var="weather_api_key=${{ secrets.WEATHER_API_KEY }}" \
+            -var="accuweather_api_key=${{ secrets.ACCUWEATHER_API_KEY }}"
+
+      - name: Apply Terraform (Azure)
+        run: |
+          cd terraform/azure
+          terraform apply -auto-approve \
+            -var="openweather_api_key=${{ secrets.OPENWEATHER_API_KEY }}" \
+            -var="weather_api_key=${{ secrets.WEATHER_API_KEY }}" \
+            -var="accuweather_api_key=${{ secrets.ACCUWEATHER_API_KEY }}"
+
+      - name: Deploy Azure Function
+        run: |
+          cd lambda/azure
+          npm install --production
+          zip -r function.zip .
+          az functionapp deployment source config-zip \
+            --resource-group $(cd ../../terraform/azure && terraform output -raw resource_group_name) \
+            --name $(cd ../../terraform/azure && terraform output -raw function_app_name) \
+            --src function.zip
+
+      - name: Output Azure endpoints
+        run: |
+          cd terraform/azure
+          echo "AZURE_API_URL=$(terraform output -raw function_app_url)" >> $GITHUB_ENV
+          terraform output
+
+  # Deploy to GCP
+  deploy-gcp:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'gcp' || github.event.inputs.deploy_target == '')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+
+      - name: Initialize Terraform (GCP)
+        run: |
+          cd terraform/gcp
+          terraform init
+
+      - name: Plan Terraform (GCP)
+        run: |
+          cd terraform/gcp
+          terraform plan \
+            -var="gcp_project_id=${{ secrets.GCP_PROJECT_ID }}" \
+            -var="openweather_api_key=${{ secrets.OPENWEATHER_API_KEY }}" \
+            -var="weather_api_key=${{ secrets.WEATHER_API_KEY }}" \
+            -var="accuweather_api_key=${{ secrets.ACCUWEATHER_API_KEY }}"
+
+      - name: Apply Terraform (GCP)
+        run: |
+          cd terraform/gcp
+          terraform apply -auto-approve \
+            -var="gcp_project_id=${{ secrets.GCP_PROJECT_ID }}" \
+            -var="openweather_api_key=${{ secrets.OPENWEATHER_API_KEY }}" \
+            -var="weather_api_key=${{ secrets.WEATHER_API_KEY }}" \
+            -var="accuweather_api_key=${{ secrets.ACCUWEATHER_API_KEY }}"
+
+      - name: Build and Deploy Cloud Run
+        run: |
+          # Build Docker image
+          docker build -t ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cloud-weather-dashboard-repo/weather-function:${{ github.sha }} -f docker/gcp/Dockerfile .
+          
+          # Push to Artifact Registry
+          docker push ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cloud-weather-dashboard-repo/weather-function:${{ github.sha }}
+          
+          # Deploy to Cloud Run
+          gcloud run deploy cloud-weather-dashboard-weather-function \
+            --image ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cloud-weather-dashboard-repo/weather-function:${{ github.sha }} \
+            --region ${{ secrets.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated
+
+      - name: Output GCP endpoints
+        run: |
+          cd terraform/gcp
+          echo "GCP_API_URL=$(terraform output -raw cloud_run_url)" >> $GITHUB_ENV
+          terraform output
+
+  # Deploy Frontend
+  deploy-frontend:
+    needs: [deploy-aws, deploy-azure, deploy-gcp]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'frontend' || github.event.inputs.deploy_target == '')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get deployment URLs
+        run: |
+          # Get URLs from previous jobs or secrets
+          echo "AWS_API_URL=${{ secrets.AWS_API_URL }}" >> $GITHUB_ENV
+          echo "AZURE_API_URL=${{ secrets.AZURE_API_URL }}" >> $GITHUB_ENV
+          echo "GCP_API_URL=${{ secrets.GCP_API_URL }}" >> $GITHUB_ENV
+          echo "AGGREGATION_API_URL=${{ secrets.AGGREGATION_API_URL }}" >> $GITHUB_ENV
+
+      - name: Build Next.js application
+        run: npm run build
+        env:
+          AWS_API_URL: ${{ env.AWS_API_URL }}
+          AZURE_API_URL: ${{ env.AZURE_API_URL }}
+          GCP_API_URL: ${{ env.GCP_API_URL }}
+          AGGREGATION_API_URL: ${{ env.AGGREGATION_API_URL }}
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./
+
+  # Integration Tests
+  integration-tests:
+    needs: [deploy-aws, deploy-azure, deploy-gcp, deploy-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run integration tests
+        run: |
+          npm ci
+          npm run test:integration
+        env:
+          AWS_API_URL: ${{ secrets.AWS_API_URL }}
+          AZURE_API_URL: ${{ secrets.AZURE_API_URL }}
+          GCP_API_URL: ${{ secrets.GCP_API_URL }}
+          AGGREGATION_API_URL: ${{ secrets.AGGREGATION_API_URL }}
+
+  # Notification
+  notify:
+    needs: [deploy-aws, deploy-azure, deploy-gcp, deploy-frontend, integration-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify deployment status
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: |
+            Multi-Cloud Weather Dashboard Deployment
+            AWS: ${{ needs.deploy-aws.result }}
+            Azure: ${{ needs.deploy-azure.result }}
+            GCP: ${{ needs.deploy-gcp.result }}
+            Frontend: ${{ needs.deploy-frontend.result }}
+            Tests: ${{ needs.integration-tests.result }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always() 

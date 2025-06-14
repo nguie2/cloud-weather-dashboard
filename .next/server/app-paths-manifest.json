@@ -1,0 +1,5 @@
+{
+  "/page": "app/page.js",
+  "/api/aggregation/weather/route": "app/api/aggregation/weather/route.js",
+  "/api/aws/weather/route": "app/api/aws/weather/route.js"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "cross-cloud-aggregation-lambda",
+  "version": "1.0.0",
+  "description": "Cross-cloud weather data aggregation Lambda function",
+  "main": "index.js",
+  "dependencies": {
+    "aws-sdk": "^2.1490.0",
+    "axios": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 
