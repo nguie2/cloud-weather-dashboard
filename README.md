@@ -439,7 +439,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 *Demonstrating the future of cloud-native, fault-tolerant systems*
 
-[![GitHub stars](https://img.shields.io/github/stars/nguieangoue/cloud-weather-dashboard?style=social)](https://github.com/nguieangoue/cloud-weather-dashboard)
+[![GitHub stars](https://img.shields.io/github/stars/nguieangoue/cloud-weather-dashboard?style=social)](https://github.com/nguie2/cloud-weather-dashboard.git)
 [![Twitter Follow](https://img.shields.io/twitter/follow/nguieangoue?style=social)](https://twitter.com/nguieangoue)
 
 </div>
