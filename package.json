@@ -35,7 +35,7 @@
     "@aws-sdk/client-lambda": "^3.450.0",
     "@azure/cosmos": "^4.0.0",
     "@google-cloud/firestore": "^7.1.0",
-    "axios": "^1.6.0",
+    "axios": "^1.13.5",
     "lucide-react": "^0.294.0",
     "clsx": "^2.0.0",
     "swr": "^2.2.0"
